@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Deploy
         env:
           NETLIFY_SITE_ID: 3a6212c2-e042-41b8-b282-f43f7b05a197

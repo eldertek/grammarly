@@ -144,47 +144,55 @@ export class GrammarlyClient implements Registerable {
         },
       }),
       commands.registerCommand('grammarly.check', async () => {
-        const document = window.activeTextEditor?.document
-        if (document == null) return console.log('No active document')
-        const status = await this.client.protocol.getDocumentStatus(document.uri.toString())
-        const excluded: DocumentFilter[] = workspace
-          .getConfiguration('grammarly')
-          .get<string[]>('files.exclude', [])
-          .map((pattern) => ({ pattern }))
-        if (this.matchesDocumentSelector(document) && status != null) {
-          await window.showInformationMessage(`Grammarly is already enabled for this file.`)
-        } else if (languages.match(excluded, document) > 0) {
-          await window.showInformationMessage(
-            `This file is explicitly excluded using Grammarly > Files > Exclude setting.`,
-          )
-        } else {
-          const action = await window.showInformationMessage(
-            `Grammarly is not enabled for this file. Enable now?`,
-            {
-              modal: true,
-              detail: [
-                `- Scheme: ${document.uri.scheme}`,
-                `- Language: ${document.languageId}`,
-                `- Path: ${workspace.asRelativePath(document.uri)}`,
-              ].join('\n'),
-            },
+        const editor = window.activeTextEditor
+        if (!editor || !editor.document) {
+          await window.showWarningMessage('No active document to check with Grammarly.')
+          return
+        }
+        const document = editor.document
+        try {
+          const status = await this.client?.protocol?.getDocumentStatus?.(document.uri.toString())
+          const excluded: DocumentFilter[] = workspace
+            .getConfiguration('grammarly')
+            .get<string[]>('files.exclude', [])
+            .map((pattern) => ({ pattern }))
+          if (this.matchesDocumentSelector(document) && status != null) {
+            await window.showInformationMessage(`Grammarly is already enabled for this file.`)
+          } else if (languages.match(excluded, document) > 0) {
+            await window.showInformationMessage(
+              `This file is explicitly excluded using Grammarly > Files > Exclude setting.`,
+            )
+          } else {
+            const action = await window.showInformationMessage(
+              `Grammarly is not enabled for this file. Enable now?`,
+              {
+                modal: true,
+                detail: [
+                  `- Scheme: ${document.uri.scheme}`,
+                  `- Language: ${document.languageId}`,
+                  `- Path: ${workspace.asRelativePath(document.uri)}`,
+                ].join('\n'),
+              },
 
-            'Current file',
-            `All ${document.languageId} files`,
-          )
+              'Current file',
+              `All ${document.languageId} files`,
+            )
 
-          if (action != null) {
-            const workspaceConfig = workspace.getConfiguration('grammarly')
-            const workspaceSelectors = workspaceConfig.get<DocumentFilter[]>('selectors', [])
-            const selector: DocumentFilter = {
-              language: document.languageId,
-              scheme: document.uri.scheme,
-              pattern: action === 'Current file' ? workspace.asRelativePath(document.uri) : undefined,
+            if (action != null) {
+              const workspaceConfig = workspace.getConfiguration('grammarly')
+              const workspaceSelectors = workspaceConfig.get<DocumentFilter[]>('selectors', [])
+              const selector: DocumentFilter = {
+                language: document.languageId,
+                scheme: document.uri.scheme,
+                pattern: action === 'Current file' ? workspace.asRelativePath(document.uri) : undefined,
+              }
+              const selectors = [...workspaceSelectors, selector]
+              await workspaceConfig.update('selectors', selectors, false)
+              await this.start()
             }
-            const selectors = [...workspaceSelectors, selector]
-            await workspaceConfig.update('selectors', selectors, false)
-            await this.start()
           }
+        } catch (error) {
+          await window.showErrorMessage(`Grammarly check failed: ${(error as Error)?.message || error}`)
         }
       }),
       commands.registerCommand('grammarly.login', async () => {
@@ -208,6 +216,14 @@ export class GrammarlyClient implements Registerable {
       }),
       { dispose: () => this.session?.dispose() },
     )
+  }
+
+  public async stop(): Promise<void> {
+    if (this.session) {
+      this.session.dispose()
+      this.session = undefined
+    }
+    this.isReady = false
   }
 
   public async start(): Promise<void> {

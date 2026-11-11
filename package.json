@@ -1,7 +1,13 @@
 {
+  "name": "grammarly",
+  "version": "0.25.0",
   "private": true,
+  "sponsor": {
+    "url": "https://www.patreon.com/eldertek"
+  },
   "packageManager": "pnpm@8.10.2",
   "engines": {
+    "vscode": "^1.85.0",
     "node": "^18.18.2"
   },
   "scripts": {
